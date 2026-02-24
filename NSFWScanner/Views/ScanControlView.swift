@@ -178,6 +178,6 @@ struct ScanControlView: View {
             }
             .disabled(orchestrator.state == .scanning)
         }
-        .navigationTitle("FamilySafe")
+        .navigationTitle("NSFWScanner")
     }
 }

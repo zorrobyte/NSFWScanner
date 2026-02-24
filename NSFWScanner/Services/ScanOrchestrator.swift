@@ -2,7 +2,7 @@ import Photos
 import Observation
 import os
 
-private let logger = Logger(subsystem: "com.familysafe.nsfwfinder", category: "ScanOrchestrator")
+private let logger = Logger(subsystem: "com.zorrobyte.nsfwscanner", category: "ScanOrchestrator")
 
 @Observable
 final class ScanOrchestrator {

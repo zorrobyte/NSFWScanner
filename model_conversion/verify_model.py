@@ -14,7 +14,7 @@ from timm.data import resolve_data_config, create_transform
 
 
 def main():
-    mlpackage_path = Path(__file__).parent.parent / "FamilySafe-NSFW-Finder" / "Resources" / "NSFWClassifier.mlpackage"
+    mlpackage_path = Path(__file__).parent.parent / "NSFWScanner" / "Resources" / "NSFWClassifier.mlpackage"
 
     if not mlpackage_path.exists():
         print(f"ERROR: {mlpackage_path} not found. Run convert_model.py first.")

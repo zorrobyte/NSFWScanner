@@ -2,7 +2,7 @@ import Photos
 import AppKit
 import os
 
-private let photoLogger = Logger(subsystem: "com.familysafe.nsfwfinder", category: "PhotoLibraryService")
+private let photoLogger = Logger(subsystem: "com.zorrobyte.nsfwscanner", category: "PhotoLibraryService")
 
 actor PhotoLibraryService {
     func requestAuthorization() async -> PHAuthorizationStatus {

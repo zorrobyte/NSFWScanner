@@ -1,4 +1,4 @@
-# FamilySafe NSFW Finder
+# NSFWScanner
 
 A native macOS app that scans your Apple Photos library for NSFW content using on-device machine learning. Flagged photos and videos can be reviewed and moved to a dedicated "NSFW" album.
 
@@ -28,10 +28,10 @@ All classification runs locally on your Mac — no images are uploaded anywhere.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/zorrobyte/FamilySafe-NSFW-Finder.git
+   git clone https://github.com/zorrobyte/NSFWScanner.git
    ```
 
-2. Open `FamilySafe-NSFW-Finder.xcodeproj` in Xcode.
+2. Open `NSFWScanner.xcodeproj` in Xcode.
 
 3. Build and run. The CoreML model is bundled in the repo — no additional setup needed.
 
@@ -80,8 +80,8 @@ The NSFW classification model was created by [Marqo](https://huggingface.co/Marq
 ## Project Structure
 
 ```
-FamilySafe-NSFW-Finder/
-├── FamilySafe_NSFW_FinderApp.swift    # App entry point
+NSFWScanner/
+├── NSFWScannerApp.swift               # App entry point
 ├── Models/
 │   ├── ScanResult.swift               # Flagged asset data
 │   └── ScanState.swift                # State machine enum

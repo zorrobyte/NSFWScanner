@@ -10,7 +10,7 @@ import timm
 
 
 def main():
-    output_path = Path(__file__).parent.parent / "FamilySafe-NSFW-Finder" / "Resources" / "NSFWClassifier.mlpackage"
+    output_path = Path(__file__).parent.parent / "NSFWScanner" / "Resources" / "NSFWClassifier.mlpackage"
 
     # Step 1: Load model via timm
     print("1/6  Loading Marqo/nsfw-image-detection-384 via timm...")
@@ -64,7 +64,7 @@ def main():
 
     # Step 6: Set metadata and save
     print("6/6  Setting metadata and saving...")
-    mlmodel.author = "FamilySafe (model: Marqo/nsfw-image-detection-384)"
+    mlmodel.author = "NSFWScanner (model: Marqo/nsfw-image-detection-384)"
     mlmodel.short_description = (
         "NSFW image classifier based on ViT-Tiny (384x384). "
         "98.56% accuracy. Classes: NSFW, SFW."

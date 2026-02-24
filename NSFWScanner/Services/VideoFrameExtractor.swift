@@ -2,7 +2,7 @@ import AVFoundation
 import CoreMedia
 import os
 
-private let extractorLogger = Logger(subsystem: "com.familysafe.nsfwfinder", category: "VideoFrameExtractor")
+private let extractorLogger = Logger(subsystem: "com.zorrobyte.nsfwscanner", category: "VideoFrameExtractor")
 
 actor VideoFrameExtractor {
     /// Max frames to extract per video to prevent long videos from stalling the pipeline.

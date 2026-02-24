@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FamilySafe_NSFW_FinderApp: App {
+struct NSFWScannerApp: App {
     @State private var orchestrator = ScanOrchestrator()
 
     var body: some Scene {

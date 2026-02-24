@@ -4,7 +4,7 @@ import CoreGraphics
 import CoreVideo
 import os
 
-private let classifierLogger = Logger(subsystem: "com.familysafe.nsfwfinder", category: "ClassifierService")
+private let classifierLogger = Logger(subsystem: "com.zorrobyte.nsfwscanner", category: "ClassifierService")
 
 actor ClassifierService {
     private var mlModel: MLModel?
