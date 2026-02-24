@@ -29,7 +29,7 @@ class NormalizedModel(nn.Module):
         # x is already in [0, 1] (CoreML applied scale=1/255, bias=0)
         x = (x - self.mean) / self.std
         outputs = self.model(pixel_values=x)
-        return outputs.logits
+        return torch.nn.functional.softmax(outputs.logits, dim=-1)
 
 
 def main():

@@ -31,7 +31,7 @@ final class ScanOrchestrator {
     var imageConcurrency: Double = 20
     var videoConcurrency: Double = 16
 
-    var selectedModel: NSFWModel = .marqo
+    var selectedModel: NSFWModel = .falconsai
     var albumName: String = "NSFW"
     var viddexaCategories: Set<String> = ["hentai", "porn", "sexy"]
 
