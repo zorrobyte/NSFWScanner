@@ -31,6 +31,10 @@ final class ScanOrchestrator {
     var imageConcurrency: Double = 20
     var videoConcurrency: Double = 16
 
+    var selectedModel: NSFWModel = .marqo
+    var albumName: String = "NSFW"
+    var viddexaCategories: Set<String> = ["hentai", "porn", "sexy"]
+
     var totalAssets: Int { totalImages + totalVideos }
     var processedCount: Int { processedImages + processedVideos }
     var progress: Double {
@@ -43,8 +47,47 @@ final class ScanOrchestrator {
     private let frameExtractor = VideoFrameExtractor()
     private var scanTask: Task<Void, Never>?
 
+    init() {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: "selectedModel"),
+           let model = NSFWModel(rawValue: raw) {
+            selectedModel = model
+        }
+        if let saved = defaults.object(forKey: "confidenceThreshold") as? Float, saved > 0 {
+            confidenceThreshold = saved
+        }
+        if let saved = defaults.object(forKey: "frameInterval") as? Double, saved > 0 {
+            frameInterval = saved
+        }
+        if let saved = defaults.object(forKey: "imageConcurrency") as? Double, saved > 0 {
+            imageConcurrency = saved
+        }
+        if let saved = defaults.object(forKey: "videoConcurrency") as? Double, saved > 0 {
+            videoConcurrency = saved
+        }
+        if let saved = defaults.string(forKey: "albumName"), !saved.isEmpty {
+            albumName = saved
+        }
+        if let saved = defaults.array(forKey: "viddexaCategories") as? [String], !saved.isEmpty {
+            viddexaCategories = Set(saved)
+        }
+    }
+
+    func saveSettings() {
+        let defaults = UserDefaults.standard
+        defaults.set(selectedModel.rawValue, forKey: "selectedModel")
+        defaults.set(confidenceThreshold, forKey: "confidenceThreshold")
+        defaults.set(frameInterval, forKey: "frameInterval")
+        defaults.set(imageConcurrency, forKey: "imageConcurrency")
+        defaults.set(videoConcurrency, forKey: "videoConcurrency")
+        defaults.set(albumName, forKey: "albumName")
+        defaults.set(Array(viddexaCategories), forKey: "viddexaCategories")
+    }
+
     func startScan() {
         guard state == .idle || state == .reviewing else { return }
+
+        saveSettings()
 
         flaggedResults = []
         flaggedImageCount = 0
@@ -70,12 +113,12 @@ final class ScanOrchestrator {
                 state = .scanning
 
                 logger.info("Loading ML model...")
-                try await classifier.loadModel()
+                try await classifier.loadModel(selectedModel)
                 logger.info("Model loaded successfully")
 
                 logger.info("Fetching all assets...")
                 let fetchResult = await photoLibrary.fetchAllAssets()
-                let excludedIDs = await photoLibrary.nsfwAlbumAssetIDs()
+                let excludedIDs = await photoLibrary.albumAssetIDs(albumName: albumName)
 
                 let wantImages = scanImages
                 let wantVideos = scanVideos
@@ -93,11 +136,18 @@ final class ScanOrchestrator {
 
                 totalImages = imageAssets.count
                 totalVideos = videoAssets.count
-                logger.info("Found \(self.totalImages) images and \(self.totalVideos) videos to scan (skipped \(excludedIDs.count) in NSFW album)")
+                logger.info("Found \(self.totalImages) images and \(self.totalVideos) videos to scan (skipped \(excludedIDs.count) in \(self.albumName) album)")
 
                 guard totalAssets > 0 else {
                     state = .reviewing
                     return
+                }
+
+                let nsfwLabels: Set<String>
+                if selectedModel == .viddexa {
+                    nsfwLabels = viddexaCategories
+                } else {
+                    nsfwLabels = selectedModel.defaultNSFWLabels
                 }
 
                 let threshold = confidenceThreshold
@@ -125,7 +175,8 @@ final class ScanOrchestrator {
                                                 asset: asset,
                                                 classifier: classifier,
                                                 photoLibrary: photoLibrary,
-                                                threshold: threshold
+                                                threshold: threshold,
+                                                nsfwLabels: nsfwLabels
                                             )
                                         } catch {
                                             logger.warning("Image \(asset.localIdentifier) failed: \(error.localizedDescription)")
@@ -176,7 +227,8 @@ final class ScanOrchestrator {
                                                 photoLibrary: photoLibrary,
                                                 frameExtractor: frameExtractor,
                                                 threshold: threshold,
-                                                frameInterval: interval
+                                                frameInterval: interval,
+                                                nsfwLabels: nsfwLabels
                                             )
                                         } catch {
                                             logger.warning("Video \(asset.localIdentifier) failed: \(error.localizedDescription)")
@@ -238,7 +290,7 @@ final class ScanOrchestrator {
                 return
             }
 
-            let album = try await photoLibrary.createNSFWAlbumIfNeeded()
+            let album = try await photoLibrary.createAlbumIfNeeded(named: albumName)
             logger.info("Album ready: \(album.localizedTitle ?? "NSFW")")
             try await photoLibrary.addAssets(assetsToAdd, toAlbum: album)
             logger.info("Successfully added \(assetsToAdd.count) assets to album")
@@ -262,6 +314,20 @@ final class ScanOrchestrator {
         logger.info("Dismissed \(ids.count) results, \(self.flaggedResults.count) remaining")
     }
 
+    func hideAssets(ids: Set<String>) async {
+        state = .committingToAlbum
+        do {
+            let assetsToHide = flaggedResults.filter { ids.contains($0.id) }.map(\.asset)
+            try await photoLibrary.hideAssets(assetsToHide)
+            flaggedResults.removeAll { ids.contains($0.id) }
+            flaggedImageCount = flaggedResults.filter { $0.mediaType == .image }.count
+            flaggedVideoCount = flaggedResults.filter { $0.mediaType == .video }.count
+            state = .reviewing
+        } catch {
+            state = .error(error.localizedDescription)
+        }
+    }
+
     func resetToIdle() {
         state = .idle
     }
@@ -274,7 +340,8 @@ final class ScanOrchestrator {
         asset: PHAsset,
         classifier: ClassifierService,
         photoLibrary: PhotoLibraryService,
-        threshold: Float
+        threshold: Float,
+        nsfwLabels: Set<String>
     ) async throws -> ScanResult? {
         let fetchStart = CFAbsoluteTimeGetCurrent()
         let cgImage = try await photoLibrary.classificationImage(for: asset, targetSize: classificationSize)
@@ -286,7 +353,7 @@ final class ScanOrchestrator {
 
         logger.debug("Image \(asset.localIdentifier.prefix(8)): fetch=\(String(format: "%.0f", fetchTime * 1000))ms classify=\(String(format: "%.0f", classifyTime * 1000))ms → \(result.label) \(Int(result.confidence * 100))%")
 
-        if result.label == "NSFW" && result.confidence >= threshold {
+        if nsfwLabels.contains(result.label.lowercased()) && result.confidence >= threshold {
             return ScanResult(
                 id: asset.localIdentifier,
                 asset: asset,
@@ -305,7 +372,8 @@ final class ScanOrchestrator {
         photoLibrary: PhotoLibraryService,
         frameExtractor: VideoFrameExtractor,
         threshold: Float,
-        frameInterval: Double
+        frameInterval: Double,
+        nsfwLabels: Set<String>
     ) async throws -> ScanResult? {
         let videoStart = CFAbsoluteTimeGetCurrent()
         let avAsset = try await photoLibrary.requestAVAsset(for: asset)
@@ -319,12 +387,14 @@ final class ScanOrchestrator {
 
         var worstConfidence: Float = 0
         var worstFrameTime: Double = 0
+        var worstLabel: String = ""
 
         for (cgImage, time) in frames {
             let result = try await classifier.classify(cgImage: cgImage)
-            if result.label == "NSFW" && result.confidence > worstConfidence {
+            if nsfwLabels.contains(result.label.lowercased()) && result.confidence > worstConfidence {
                 worstConfidence = result.confidence
                 worstFrameTime = time.seconds
+                worstLabel = result.label
             }
         }
 
@@ -332,7 +402,7 @@ final class ScanOrchestrator {
             return ScanResult(
                 id: asset.localIdentifier,
                 asset: asset,
-                label: "NSFW",
+                label: worstLabel,
                 confidence: worstConfidence,
                 mediaType: .video,
                 flaggedFrameTime: worstFrameTime
