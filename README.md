@@ -6,7 +6,7 @@ All classification runs locally on your Mac — no images are uploaded anywhere.
 
 ## Features
 
-- **4 bundled ML models** — choose the best model for your use case
+- **3 bundled ML models** — choose the best model for your use case
 - Scans your entire Photos library (images and videos)
 - On-device ML classification using Core ML and the Vision framework
 - Video scanning with configurable frame extraction intervals
@@ -17,7 +17,6 @@ All classification runs locally on your Mac — no images are uploaded anywhere.
 - Dismiss false positives before committing
 - **Move to Album** — move flagged content to a configurable album (default "NSFW")
 - **Hide in Photos** — hide flagged content in the system Hidden album
-- Granular category toggles for the 5-class model (Porn, Hentai, Sexy, Drawing)
 - Settings persist across app launches
 - Skips assets already in the target album on subsequent scans
 - Optimized for Apple Silicon (GPU + ANE acceleration)
@@ -37,7 +36,7 @@ All classification runs locally on your Mac — no images are uploaded anywhere.
 
 2. Open `NSFWScanner.xcodeproj` in Xcode.
 
-3. Build and run. All 4 CoreML models are bundled in the repo — no additional setup needed.
+3. Build and run. All 3 CoreML models are bundled in the repo — no additional setup needed.
 
 4. Grant Photos library access when prompted.
 
@@ -51,13 +50,12 @@ Photos and videos are processed in separate concurrent queues so slow video proc
 
 ## ML Models
 
-NSFWScanner bundles 4 models. Choose the best fit from the sidebar:
+NSFWScanner bundles 3 models. Choose the best fit from the sidebar:
 
 | Model | Architecture | Input | Classes | Size (F16) | Best for |
 |---|---|---|---|---|---|
-| [Marqo/nsfw-image-detection-384](https://huggingface.co/Marqo/nsfw-image-detection-384) | ViT-Tiny | 384x384 | NSFW, SFW | ~11 MB | Speed + accuracy (default) |
-| [Falconsai/nsfw_image_detection](https://huggingface.co/Falconsai/nsfw_image_detection) | ViT-Base | 224x224 | nsfw, normal | ~164 MB | Most popular, well-tested |
-| [viddexa/nsfw-detection-2-mini](https://huggingface.co/viddexa/nsfw-detection-2-mini) | EfficientNet-B4 | 380x380 | safe, hentai, porn, sexy, drawing | ~34 MB | Granular category control |
+| [Marqo/nsfw-image-detection-384](https://huggingface.co/Marqo/nsfw-image-detection-384) | ViT-Tiny | 384x384 | NSFW, SFW | ~11 MB | Speed + accuracy |
+| [Falconsai/nsfw_image_detection](https://huggingface.co/Falconsai/nsfw_image_detection) | ViT-Base | 224x224 | nsfw, normal | ~164 MB | Most popular, well-tested (default) |
 | [AdamCodd/vit-base-nsfw-detector](https://huggingface.co/AdamCodd/vit-base-nsfw-detector) | ViT-Base | 384x384 | nsfw, sfw | ~164 MB | Strong on drawings/illustrations |
 
 The conversion scripts are in the `model_conversion/` directory. To re-convert any model:
@@ -67,9 +65,8 @@ cd model_conversion
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python convert_model.py           # Marqo (default)
-python convert_falconsai.py       # Falconsai
-python convert_viddexa.py         # viddexa
+python convert_model.py           # Marqo
+python convert_falconsai.py       # Falconsai (default)
 python convert_adamcodd.py        # AdamCodd
 ```
 
@@ -80,7 +77,6 @@ Image normalization is baked into each CoreML model at conversion time, so the S
 All models are available on Hugging Face:
 - **Marqo/nsfw-image-detection-384** — Apache 2.0 by [Marqo](https://www.marqo.ai/)
 - **Falconsai/nsfw_image_detection** — by [Falconsai](https://huggingface.co/Falconsai)
-- **viddexa/nsfw-detection-2-mini** — by [viddexa](https://huggingface.co/viddexa)
 - **AdamCodd/vit-base-nsfw-detector** — by [AdamCodd](https://huggingface.co/AdamCodd)
 
 ## Project Structure
@@ -89,7 +85,7 @@ All models are available on Hugging Face:
 NSFWScanner/
 ├── NSFWScannerApp.swift               # App entry point
 ├── Models/
-│   ├── NSFWModel.swift                # Model enum with metadata for 4 models
+│   ├── NSFWModel.swift                # Model enum with metadata for 3 models
 │   ├── ScanResult.swift               # Flagged asset data
 │   └── ScanState.swift                # State machine enum
 ├── Services/
@@ -105,12 +101,10 @@ NSFWScanner/
 ├── Resources/
 │   ├── NSFWClassifier.mlpackage       # Marqo model (~11 MB)
 │   ├── FalconsaiNSFW.mlpackage        # Falconsai model (~164 MB, Git LFS)
-│   ├── ViddexaNSFW.mlpackage          # viddexa model (~34 MB)
 │   └── AdamCoddNSFW.mlpackage         # AdamCodd model (~164 MB, Git LFS)
 └── model_conversion/
     ├── convert_model.py               # Marqo PyTorch → CoreML
     ├── convert_falconsai.py           # Falconsai conversion
-    ├── convert_viddexa.py             # viddexa conversion
     ├── convert_adamcodd.py            # AdamCodd conversion
     ├── verify_model.py                # Conversion validation
     └── requirements.txt               # Python dependencies
@@ -120,9 +114,8 @@ NSFWScanner/
 
 | Setting | Default | Range | Description |
 |---|---|---|---|
-| Model | Marqo ViT-Tiny | 4 models | ML model used for classification |
+| Model | Falconsai ViT-Base | 3 models | ML model used for classification |
 | Album name | NSFW | any text | Name of the album for flagged content |
-| Category toggles | Porn, Hentai, Sexy | 4 categories | Which categories to flag (viddexa 5-class only) |
 | Confidence | 85% | 50–99% | How sure the AI must be before flagging |
 | Frame interval | 5s | 1–30s | Seconds between video frame checks |
 | Photo tasks | 20 | 1–128 | Concurrent photo classification tasks |

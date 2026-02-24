@@ -95,20 +95,6 @@ struct ScanControlView: View {
                 }
                 .pickerStyle(.menu)
 
-                if orchestrator.selectedModel.hasCategories {
-                    ForEach(NSFWModel.viddexaCategories, id: \.self) { category in
-                        Toggle(category.capitalized, isOn: Binding(
-                            get: { orchestrator.viddexaCategories.contains(category) },
-                            set: { enabled in
-                                if enabled {
-                                    orchestrator.viddexaCategories.insert(category)
-                                } else {
-                                    orchestrator.viddexaCategories.remove(category)
-                                }
-                            }
-                        ))
-                    }
-                }
             }
             .disabled(orchestrator.state == .scanning)
 

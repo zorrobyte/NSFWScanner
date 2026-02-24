@@ -34,7 +34,6 @@ final class ScanOrchestrator {
 
     var selectedModel: NSFWModel = .falconsai
     var albumName: String = "NSFW"
-    var viddexaCategories: Set<String> = ["hentai", "porn", "sexy"]
 
     var totalAssets: Int { totalImages + totalVideos }
     var processedCount: Int { processedImages + processedVideos }
@@ -69,9 +68,6 @@ final class ScanOrchestrator {
         if let saved = defaults.string(forKey: "albumName"), !saved.isEmpty {
             albumName = saved
         }
-        if let saved = defaults.array(forKey: "viddexaCategories") as? [String], !saved.isEmpty {
-            viddexaCategories = Set(saved)
-        }
     }
 
     func saveSettings() {
@@ -82,7 +78,6 @@ final class ScanOrchestrator {
         defaults.set(imageConcurrency, forKey: "imageConcurrency")
         defaults.set(videoConcurrency, forKey: "videoConcurrency")
         defaults.set(albumName, forKey: "albumName")
-        defaults.set(Array(viddexaCategories), forKey: "viddexaCategories")
     }
 
     func startScan() {
@@ -144,12 +139,7 @@ final class ScanOrchestrator {
                     return
                 }
 
-                let nsfwLabels: Set<String>
-                if selectedModel == .viddexa {
-                    nsfwLabels = viddexaCategories
-                } else {
-                    nsfwLabels = selectedModel.defaultNSFWLabels
-                }
+                let nsfwLabels = selectedModel.defaultNSFWLabels
 
                 let threshold = confidenceThreshold
                 let interval = frameInterval
