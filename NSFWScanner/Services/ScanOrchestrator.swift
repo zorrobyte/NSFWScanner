@@ -1,3 +1,4 @@
+import Vision
 import Photos
 import Observation
 import os
@@ -336,6 +337,28 @@ final class ScanOrchestrator {
 
     private static let classificationSize = CGSize(width: 384, height: 384)
 
+    /// Computes combined NSFW confidence by summing probabilities across all matching NSFW labels.
+    /// For binary models (2-class), this is equivalent to the single top-1 confidence.
+    /// For multi-class models (e.g. viddexa 5-class), this sums porn + sexy + hentai etc.
+    nonisolated private static func nsfwConfidence(
+        from observations: [VNClassificationObservation],
+        nsfwLabels: Set<String>
+    ) -> (topLabel: String, combinedConfidence: Float) {
+        var totalConfidence: Float = 0
+        var topLabel = ""
+        var topConf: Float = 0
+        for obs in observations {
+            if nsfwLabels.contains(obs.identifier.lowercased()) {
+                totalConfidence += obs.confidence
+                if obs.confidence > topConf {
+                    topConf = obs.confidence
+                    topLabel = obs.identifier
+                }
+            }
+        }
+        return (topLabel: topLabel, combinedConfidence: totalConfidence)
+    }
+
     nonisolated private static func classifyImage(
         asset: PHAsset,
         classifier: ClassifierService,
@@ -348,17 +371,19 @@ final class ScanOrchestrator {
         let fetchTime = CFAbsoluteTimeGetCurrent() - fetchStart
 
         let classifyStart = CFAbsoluteTimeGetCurrent()
-        let result = try await classifier.classify(cgImage: cgImage)
+        let observations = try await classifier.classifyAll(cgImage: cgImage)
         let classifyTime = CFAbsoluteTimeGetCurrent() - classifyStart
 
-        logger.debug("Image \(asset.localIdentifier.prefix(8)): fetch=\(String(format: "%.0f", fetchTime * 1000))ms classify=\(String(format: "%.0f", classifyTime * 1000))ms → \(result.label) \(Int(result.confidence * 100))%")
+        let (topLabel, combinedConfidence) = nsfwConfidence(from: observations, nsfwLabels: nsfwLabels)
 
-        if nsfwLabels.contains(result.label.lowercased()) && result.confidence >= threshold {
+        logger.debug("Image \(asset.localIdentifier.prefix(8)): fetch=\(String(format: "%.0f", fetchTime * 1000))ms classify=\(String(format: "%.0f", classifyTime * 1000))ms → \(topLabel) \(Int(combinedConfidence * 100))%")
+
+        if combinedConfidence >= threshold {
             return ScanResult(
                 id: asset.localIdentifier,
                 asset: asset,
-                label: result.label,
-                confidence: result.confidence,
+                label: topLabel,
+                confidence: combinedConfidence,
                 mediaType: .image,
                 flaggedFrameTime: nil
             )
@@ -390,11 +415,12 @@ final class ScanOrchestrator {
         var worstLabel: String = ""
 
         for (cgImage, time) in frames {
-            let result = try await classifier.classify(cgImage: cgImage)
-            if nsfwLabels.contains(result.label.lowercased()) && result.confidence > worstConfidence {
-                worstConfidence = result.confidence
+            let observations = try await classifier.classifyAll(cgImage: cgImage)
+            let (topLabel, combinedConfidence) = nsfwConfidence(from: observations, nsfwLabels: nsfwLabels)
+            if combinedConfidence > worstConfidence {
+                worstConfidence = combinedConfidence
                 worstFrameTime = time.seconds
-                worstLabel = result.label
+                worstLabel = topLabel
             }
         }
 

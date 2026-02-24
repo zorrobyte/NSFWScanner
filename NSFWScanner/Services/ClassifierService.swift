@@ -63,6 +63,25 @@ actor ClassifierService {
         return (label: top.identifier, confidence: top.confidence)
     }
 
+    /// Returns all classification observations, useful for summing probabilities across multiple NSFW classes.
+    func classifyAll(cgImage: CGImage, orientation: CGImagePropertyOrientation = .up) throws -> [VNClassificationObservation] {
+        guard let model = vnModel else {
+            throw ClassifierError.modelNotLoaded
+        }
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
+        let request = VNCoreMLRequest(model: model)
+        request.imageCropAndScaleOption = .scaleFill
+
+        try handler.perform([request])
+
+        guard let results = request.results as? [VNClassificationObservation], !results.isEmpty else {
+            throw ClassifierError.noResults
+        }
+
+        return results
+    }
+
     func classify(imageData: Data, orientation: CGImagePropertyOrientation) throws -> (label: String, confidence: Float) {
         guard let model = vnModel else {
             throw ClassifierError.modelNotLoaded
