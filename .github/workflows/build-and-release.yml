@@ -1,0 +1,105 @@
+name: Build, Notarize & Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SCHEME: NSFWScanner
+  PROJECT: NSFWScanner.xcodeproj
+  APP_NAME: NSFWScanner
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$CERT_BASE64" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Verify
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build Release
+        run: |
+          xcodebuild -project $PROJECT -scheme $SCHEME -configuration Release clean build \
+            CONFIGURATION_BUILD_DIR=${{ runner.temp }}/build \
+            CODE_SIGN_IDENTITY="Developer ID Application: Ross Fisher (NZC8Y8Y93F)" \
+            DEVELOPMENT_TEAM=NZC8Y8Y93F \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options runtime"
+
+      - name: Verify code signing
+        run: |
+          codesign -dvv ${{ runner.temp }}/build/$APP_NAME.app
+          codesign -dvv --entitlements - ${{ runner.temp }}/build/$APP_NAME.app 2>&1 | grep -v get-task-allow || true
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+        run: |
+          cd ${{ runner.temp }}/build
+          ditto -c -k --keepParent $APP_NAME.app $APP_NAME.zip
+
+          xcrun notarytool submit $APP_NAME.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$NOTARIZATION_PASSWORD" \
+            --wait
+
+          xcrun stapler staple $APP_NAME.app
+
+      - name: Package for distribution
+        run: |
+          cd ${{ runner.temp }}/build
+          rm -f $APP_NAME.zip
+          ditto -c -k --keepParent $APP_NAME.app $APP_NAME.zip
+          echo "ZIP_PATH=${{ runner.temp }}/build/$APP_NAME.zip" >> $GITHUB_ENV
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}
+          path: ${{ env.ZIP_PATH }}
+
+      - name: Create release (tagged pushes only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          gh release create "$TAG" "$ZIP_PATH" \
+            --title "$APP_NAME $TAG" \
+            --generate-notes
