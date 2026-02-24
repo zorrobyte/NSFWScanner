@@ -20,10 +20,10 @@ actor PhotoLibraryService {
         return PHAsset.fetchAssets(with: options)
     }
 
-    /// Returns the set of asset local identifiers already in the NSFW album.
-    func nsfwAlbumAssetIDs() -> Set<String> {
+    /// Returns the set of asset local identifiers already in the named album.
+    func albumAssetIDs(albumName: String) -> Set<String> {
         let fetchOptions = PHFetchOptions()
-        fetchOptions.predicate = NSPredicate(format: "title == %@", "NSFW")
+        fetchOptions.predicate = NSPredicate(format: "title == %@", albumName)
         let albums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
 
         guard let album = albums.firstObject else { return [] }
@@ -35,7 +35,7 @@ actor PhotoLibraryService {
         assets.enumerateObjects { asset, _, _ in
             ids.insert(asset.localIdentifier)
         }
-        photoLogger.info("Found \(ids.count) assets already in NSFW album — will skip")
+        photoLogger.info("Found \(ids.count) assets already in \(albumName) album — will skip")
         return ids
     }
 
@@ -160,9 +160,9 @@ actor PhotoLibraryService {
         }
     }
 
-    func createNSFWAlbumIfNeeded() async throws -> PHAssetCollection {
+    func createAlbumIfNeeded(named albumName: String) async throws -> PHAssetCollection {
         let fetchOptions = PHFetchOptions()
-        fetchOptions.predicate = NSPredicate(format: "title == %@", "NSFW")
+        fetchOptions.predicate = NSPredicate(format: "title == %@", albumName)
         let existing = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
 
         if let album = existing.firstObject {
@@ -171,7 +171,7 @@ actor PhotoLibraryService {
 
         var placeholder: PHObjectPlaceholder?
         try await PHPhotoLibrary.shared().performChanges {
-            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: "NSFW")
+            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: albumName)
             placeholder = request.placeholderForCreatedAssetCollection
         }
 
@@ -183,6 +183,16 @@ actor PhotoLibraryService {
         }
 
         return album
+    }
+
+    func hideAssets(_ assets: [PHAsset]) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            for asset in assets {
+                let request = PHAssetChangeRequest(for: asset)
+                request.isHidden = true
+            }
+        }
+        photoLogger.info("Hidden \(assets.count) assets")
     }
 
     func addAssets(_ assets: [PHAsset], toAlbum album: PHAssetCollection) async throws {
