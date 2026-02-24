@@ -63,6 +63,22 @@ struct ContentView: View {
                     .padding(.horizontal, 60)
                     .frame(maxWidth: 500)
 
+                HStack(spacing: 12) {
+                    Image(systemName: "cpu")
+                        .foregroundStyle(.teal)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Current Model: \(orchestrator.selectedModel.displayName)")
+                            .font(.subheadline.bold())
+                        Text(orchestrator.selectedModel.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: 500)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
                     Spacer()
                 }
             case .requestingPermission:
@@ -74,7 +90,7 @@ struct ContentView: View {
                     ContentUnavailableView(
                         "All Clear",
                         systemImage: "checkmark.shield.fill",
-                        description: Text("No NSFW content was detected in your Photos library.")
+                        description: Text("Scanned \(orchestrator.processedCount) items. No NSFW content detected.")
                     )
                 } else {
                     ResultsGridView()
@@ -97,6 +113,29 @@ struct ContentView: View {
                     Button("Try Again") {
                         orchestrator.resetToIdle()
                     }
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: orchestrator.state)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                switch orchestrator.state {
+                case .idle, .error:
+                    Button("Start Scan", systemImage: "play.fill") {
+                        orchestrator.startScan()
+                    }
+                    .disabled(!orchestrator.scanImages && !orchestrator.scanVideos)
+                case .scanning:
+                    Button("Cancel", systemImage: "stop.fill", role: .destructive) {
+                        orchestrator.cancelScan()
+                    }
+                case .reviewing, .committingToAlbum:
+                    Button("New Scan", systemImage: "arrow.counterclockwise") {
+                        orchestrator.resetToIdle()
+                    }
+                case .requestingPermission:
+                    ProgressView()
+                        .controlSize(.small)
                 }
             }
         }

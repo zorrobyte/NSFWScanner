@@ -7,29 +7,8 @@ struct ScanControlView: View {
         @Bindable var orchestrator = orchestrator
 
         List {
-            Section("Scan") {
-                switch orchestrator.state {
-                case .idle, .error:
-                    Button {
-                        orchestrator.startScan()
-                    } label: {
-                        Label("Start Scan", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!orchestrator.scanImages && !orchestrator.scanVideos)
-
-                case .scanning:
-                    Button(role: .destructive) {
-                        orchestrator.cancelScan()
-                    } label: {
-                        Label("Cancel", systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .controlSize(.large)
-
-                    // Image progress
+            if orchestrator.state == .scanning {
+                Section("Progress") {
                     if orchestrator.totalImages > 0 {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -48,8 +27,6 @@ struct ScanControlView: View {
                             ProgressView(value: orchestrator.imageProgress)
                         }
                     }
-
-                    // Video progress
                     if orchestrator.totalVideos > 0 {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -69,18 +46,6 @@ struct ScanControlView: View {
                                 .tint(.purple)
                         }
                     }
-
-                case .reviewing, .committingToAlbum:
-                    Button {
-                        orchestrator.resetToIdle()
-                    } label: {
-                        Label("New Scan", systemImage: "arrow.counterclockwise")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .controlSize(.large)
-
-                case .requestingPermission:
-                    ProgressView("Requesting access...")
                 }
             }
 
@@ -116,7 +81,41 @@ struct ScanControlView: View {
             }
             .disabled(orchestrator.state == .scanning)
 
+            Section("Model") {
+                Picker("Model", selection: $orchestrator.selectedModel) {
+                    ForEach(NSFWModel.allCases) { model in
+                        VStack(alignment: .leading) {
+                            Text(model.displayName)
+                            Text(model.subtitle)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(model)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                if orchestrator.selectedModel.hasCategories {
+                    ForEach(NSFWModel.viddexaCategories, id: \.self) { category in
+                        Toggle(category.capitalized, isOn: Binding(
+                            get: { orchestrator.viddexaCategories.contains(category) },
+                            set: { enabled in
+                                if enabled {
+                                    orchestrator.viddexaCategories.insert(category)
+                                } else {
+                                    orchestrator.viddexaCategories.remove(category)
+                                }
+                            }
+                        ))
+                    }
+                }
+            }
+            .disabled(orchestrator.state == .scanning)
+
             Section("Settings") {
+                TextField("Album name", text: $orchestrator.albumName)
+                    .textFieldStyle(.roundedBorder)
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Confidence")

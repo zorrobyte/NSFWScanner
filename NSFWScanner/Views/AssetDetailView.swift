@@ -36,8 +36,8 @@ struct AssetDetailView: View {
             }
 
             HStack(spacing: 24) {
-                Label(result.label, systemImage: result.label == "NSFW" ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
-                    .foregroundStyle(result.label == "NSFW" ? .red : .green)
+                Label(result.label.capitalized, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
                     .font(.title3.bold())
 
                 Text("Confidence: \(Int(result.confidence * 100))%")
@@ -57,7 +57,7 @@ struct AssetDetailView: View {
             }
             .padding(.bottom)
         }
-        .frame(minWidth: 600, minHeight: 500)
+        .frame(minWidth: 700, minHeight: 600)
         .task {
             await loadContent()
         }

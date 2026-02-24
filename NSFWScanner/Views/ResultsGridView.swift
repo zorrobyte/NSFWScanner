@@ -11,6 +11,10 @@ struct ResultsGridView: View {
         GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 8)
     ]
 
+    private var effectiveSelection: Set<String> {
+        selectedIDs.isEmpty ? Set(orchestrator.flaggedResults.map(\.id)) : selectedIDs
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -41,30 +45,40 @@ struct ResultsGridView: View {
                 Button("Select All") {
                     selectedIDs = Set(orchestrator.flaggedResults.map(\.id))
                 }
+                .disabled(orchestrator.flaggedResults.isEmpty)
 
                 Button("Deselect") {
                     selectedIDs.removeAll()
                 }
                 .disabled(selectedIDs.isEmpty)
 
-                Button("Dismiss Selected", systemImage: "xmark.circle") {
-                    orchestrator.dismissResults(ids: selectedIDs)
+                Divider()
+                    .frame(height: 20)
+
+                Button("Dismiss", systemImage: "xmark.circle") {
+                    orchestrator.dismissResults(ids: effectiveSelection)
                     selectedIDs.removeAll()
                 }
-                .disabled(selectedIDs.isEmpty)
+                .disabled(orchestrator.flaggedResults.isEmpty)
 
                 if commitInProgress {
                     ProgressView()
                         .controlSize(.small)
-                        .padding(.horizontal, 8)
                 } else {
-                    Button("Add to NSFW Album", systemImage: "folder.badge.plus") {
-                        let idsToCommit = selectedIDs.isEmpty
-                            ? Set(orchestrator.flaggedResults.map(\.id))
-                            : selectedIDs
+                    Button("Hide", systemImage: "eye.slash") {
                         commitInProgress = true
                         Task {
-                            await orchestrator.commitFlaggedToAlbum(selectedIDs: idsToCommit)
+                            await orchestrator.hideAssets(ids: effectiveSelection)
+                            selectedIDs.removeAll()
+                            commitInProgress = false
+                        }
+                    }
+
+                    Button("Move to Album", systemImage: "folder.badge.plus") {
+                        commitInProgress = true
+                        Task {
+                            await orchestrator.commitFlaggedToAlbum(selectedIDs: effectiveSelection)
+                            selectedIDs.removeAll()
                             commitInProgress = false
                         }
                     }
@@ -92,6 +106,7 @@ struct ThumbnailCell: View {
     let isSelected: Bool
 
     @State private var thumbnail: NSImage?
+    @State private var isHovered = false
     private static let photoLibrary = PhotoLibraryService()
 
     var body: some View {
@@ -142,6 +157,10 @@ struct ThumbnailCell: View {
             }
             .padding(6)
         }
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .shadow(color: .black.opacity(isHovered ? 0.2 : 0), radius: 4, y: 2)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+        .onHover { hovering in isHovered = hovering }
         .task {
             do {
                 thumbnail = try await Self.photoLibrary.thumbnail(for: result.asset, size: CGSize(width: 300, height: 300))
