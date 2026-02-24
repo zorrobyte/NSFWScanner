@@ -1,0 +1,14 @@
+# Python
+model_conversion/venv/
+__pycache__/
+*.pyc
+model_conversion/test_image.*
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+
+# macOS
+.DS_Store

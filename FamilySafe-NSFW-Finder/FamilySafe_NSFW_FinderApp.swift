@@ -1,17 +1,14 @@
-//
-//  FamilySafe_NSFW_FinderApp.swift
-//  FamilySafe-NSFW-Finder
-//
-//  Created by Ross Fisher on 2/23/26.
-//
-
 import SwiftUI
 
 @main
 struct FamilySafe_NSFW_FinderApp: App {
+    @State private var orchestrator = ScanOrchestrator()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(orchestrator)
         }
+        .defaultSize(width: 1000, height: 700)
     }
 }
