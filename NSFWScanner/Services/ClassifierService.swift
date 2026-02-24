@@ -1,35 +1,35 @@
 import CoreML
 import Vision
 import CoreGraphics
-import CoreVideo
 import os
 
 private let classifierLogger = Logger(subsystem: "com.zorrobyte.nsfwscanner", category: "ClassifierService")
 
 actor ClassifierService {
-    private var mlModel: MLModel?
     private var vnModel: VNCoreMLModel?
-    private let classLabels = ["NSFW", "SFW"]
+    private var currentModel: NSFWModel?
 
-    func loadModel() throws {
-        guard mlModel == nil else { return }
+    func loadModel(_ model: NSFWModel) throws {
+        guard model != currentModel else { return }
 
         let config = MLModelConfiguration()
         config.computeUnits = .all
 
-        let compiledURL: URL
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let cachedModelURL = cacheDir.appendingPathComponent("NSFWClassifier.mlmodelc")
+        let cachedModelURL = cacheDir.appendingPathComponent("\(model.resourceName).mlmodelc")
 
+        let compiledURL: URL
         if FileManager.default.fileExists(atPath: cachedModelURL.path) {
             compiledURL = cachedModelURL
+            classifierLogger.info("Using cached model: \(model.resourceName)")
         } else {
-            guard let bundleURL = Bundle.main.url(forResource: "NSFWClassifier", withExtension: "mlmodelc")
-                    ?? Bundle.main.url(forResource: "NSFWClassifier", withExtension: "mlpackage") else {
+            guard let bundleURL = Bundle.main.url(forResource: model.resourceName, withExtension: "mlmodelc")
+                    ?? Bundle.main.url(forResource: model.resourceName, withExtension: "mlpackage") else {
                 throw ClassifierError.modelNotFound
             }
 
             if bundleURL.pathExtension == "mlpackage" {
+                classifierLogger.info("Compiling model: \(model.resourceName)")
                 compiledURL = try MLModel.compileModel(at: bundleURL)
                 try? FileManager.default.copyItem(at: compiledURL, to: cachedModelURL)
             } else {
@@ -37,10 +37,11 @@ actor ClassifierService {
             }
         }
 
-        classifierLogger.info("Loading model from \(compiledURL.lastPathComponent), computeUnits=.all")
-        mlModel = try MLModel(contentsOf: compiledURL, configuration: config)
-        vnModel = try VNCoreMLModel(for: mlModel!)
-        classifierLogger.info("Model loaded and VNCoreMLModel created")
+        classifierLogger.info("Loading \(model.displayName) from \(compiledURL.lastPathComponent)")
+        let mlModel = try MLModel(contentsOf: compiledURL, configuration: config)
+        vnModel = try VNCoreMLModel(for: mlModel)
+        currentModel = model
+        classifierLogger.info("Model \(model.displayName) loaded successfully")
     }
 
     func classify(cgImage: CGImage, orientation: CGImagePropertyOrientation = .up) throws -> (label: String, confidence: Float) {
@@ -89,7 +90,7 @@ enum ClassifierError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .modelNotFound: "NSFWClassifier model not found in app bundle."
+        case .modelNotFound: "ML model not found in app bundle."
         case .modelNotLoaded: "Model has not been loaded. Call loadModel() first."
         case .noResults: "Classification produced no results."
         }
