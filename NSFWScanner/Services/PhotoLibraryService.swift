@@ -201,6 +201,23 @@ actor PhotoLibraryService {
             request.addAssets(assets as NSFastEnumeration)
         }
     }
+
+    /// Delete all user albums whose title starts with the given prefix.
+    func deleteAlbums(withPrefix prefix: String) async throws -> Int {
+        let albums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
+        var toDelete: [PHAssetCollection] = []
+        albums.enumerateObjects { collection, _, _ in
+            if let title = collection.localizedTitle, title.hasPrefix(prefix) {
+                toDelete.append(collection)
+            }
+        }
+        guard !toDelete.isEmpty else { return 0 }
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetCollectionChangeRequest.deleteAssetCollections(toDelete as NSFastEnumeration)
+        }
+        photoLogger.info("Deleted \(toDelete.count) albums with prefix '\(prefix)'")
+        return toDelete.count
+    }
 }
 
 enum PhotoLibraryError: LocalizedError {
